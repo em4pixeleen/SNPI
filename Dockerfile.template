@@ -1,73 +1,28 @@
-# This first line selects our base image. In this instance we use the dockerfile templates,
-# this means the appropriate image gets picked for instance on rpi3, this would end up
-# resolving to resin/raspberrypi3-python:latest
-
-
+#Seleccionamos como base la plantilla de docker, en este caso la última versión de Debian.
 FROM resin/%%RESIN_MACHINE_NAME%%-debian:latest
 MAINTAINER Daniel Verde <danielsanchezverde@me.com>
 
-
-#Instalación y Configuración del servidor SSH
-# here we install apt dependencies. We also remove the apt lists in the same step,
-# this reduces the size of the docker image.
+#Instalación de dependencias y limpieza de listado de paquetes. 
+#Con esto reducimos el tamaño de la imagen de Docker
 
 RUN apt-get update && apt-get install -yq --no-install-recommends \
     openssh-server && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# here we set up the config for openSSH.
+# Configuramos openSSH. Usuario root y contraseña root por defecto.
 RUN mkdir /var/run/sshd \
-    && echo 'root:Http://IascanghShadow2819951995' | chpasswd \
+    && echo 'root:root' | chpasswd \
     && sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
     && sed -i 's/UsePAM yes/UsePAM no/' /etc/ssh/sshd_config
 
+# Se establece un directorio de trabajo
+WORKDIR /usr/src/app
 
+#Copiamos el repositorio en el directorio de trabajo 
+COPY . ./
 
-#Instalación de Prometheus
+#Habilitamos el sistema de inicio en el contenedor para que no se cierre nunca 
+ENV INITSYSTEM on
 
-
-
-# versions
-ENV PROMETHEUS_VERSION 0.20.0
-ENV NODE_EXPORTER_VERSION 0.12.0
-ENV ALERTMANAGER_VERSION 0.2.0
-# arch
-ENV DIST_ARCH linux-armv7
-
-# default configs
-ENV THRESHOLD_CPU 50
-ENV THRESHOLD_FS 50
-ENV THRESHOLD_MEM 500
-ENV STORAGE_LOCAL_RETENTION 360h0m0s
-
-# downloading utils
-RUN apt-get update && apt-get install wget
-
-# alertmanager deps
-RUN apt-get install build-essential libc6-dev
-
-WORKDIR /etc
-
-# get prometheus server
-RUN wget https://github.com/prometheus/prometheus/releases/download/$PROMETHEUS_VERSION/prometheus-$PROMETHEUS_VERSION.$DIST_ARCH.tar.gz  \
-	&& tar xvfz prometheus-$PROMETHEUS_VERSION.$DIST_ARCH.tar.gz \
-	&& rm prometheus-$PROMETHEUS_VERSION.$DIST_ARCH.tar.gz
-
-# get prometheus alertmanager
-RUN wget https://github.com/prometheus/alertmanager/releases/download/$ALERTMANAGER_VERSION/alertmanager-$ALERTMANAGER_VERSION.$DIST_ARCH.tar.gz  \
-	&& tar xvfz alertmanager-$ALERTMANAGER_VERSION.$DIST_ARCH.tar.gz \
-	&& rm alertmanager-$ALERTMANAGER_VERSION.$DIST_ARCH.tar.gz
-
-# get node exporter
-RUN wget https://github.com/prometheus/node_exporter/releases/download/$NODE_EXPORTER_VERSION/node_exporter-$NODE_EXPORTER_VERSION.$DIST_ARCH.tar.gz  \
-	&& tar xvfz node_exporter-$NODE_EXPORTER_VERSION.$DIST_ARCH.tar.gz \
-	&& rm node_exporter-$NODE_EXPORTER_VERSION.$DIST_ARCH.tar.gz
-
-COPY config/ ./config
-
-WORKDIR /
-
-COPY start.sh ./
-
-# run when container lands on device
-CMD ["bash", "start.sh"]
+# Start.sh se ejecutara al arranque del contenedor
+CMD ["./src/start.sh"]
